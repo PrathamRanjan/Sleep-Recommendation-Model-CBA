@@ -43,22 +43,19 @@ X_train, X_test, y_train, y_test = train_test_split(X_df, y, test_size=0.2, rand
 rf_regressor = RandomForestRegressor(n_estimators=100, max_depth=10, min_samples_split=10, random_state=42)
 rf_regressor.fit(X_train, y_train)
 
-def recommend_improvements(new_data):
-    # Check if the input is a dictionary and convert it to DataFrame
+def recommend_improvements(new_data, model, preprocessor, kmeans, data_df, cluster_centers):
     if isinstance(new_data, dict):
-        new_data = pd.DataFrame([new_data])  # Convert dict to DataFrame
+        new_data = pd.DataFrame([new_data])  # Ensure new_data is a DataFrame
 
-    # Process the new data
     new_data_processed = pd.DataFrame(preprocessor.transform(new_data), columns=features)
-
     current_cluster = kmeans.predict(new_data_processed)[0]
-    current_efficiency_prediction = rf_regressor.predict(new_data_processed)[0]
+    current_efficiency_prediction = model.predict(new_data_processed)[0]
     
-    mean_efficiencies = sleep_data.groupby('Cluster')['Sleep efficiency'].mean()
+    mean_efficiencies = data_df.groupby('Cluster')['Sleep efficiency'].mean()
     better_clusters = mean_efficiencies[mean_efficiencies > mean_efficiencies.iloc[current_cluster]]
     target_cluster = better_clusters.idxmax() if not better_clusters.empty else current_cluster
     
-    target_centroid = pd.DataFrame(kmeans.cluster_centers_, columns=features).iloc[target_cluster]
+    target_centroid = pd.DataFrame(cluster_centers, columns=features).iloc[target_cluster]
     recommendations_raw = (target_centroid - new_data_processed.iloc[0])
     actionable_features = ['Caffeine consumption', 'Alcohol consumption', 'Exercise frequency', 'Daily Steps']
     recommendations = {}
@@ -70,14 +67,23 @@ def recommend_improvements(new_data):
         elif feature in ['Exercise frequency', 'Daily Steps'] and change < 0:
             recommendations[feature] = f"Increase by {abs(change):.2f} units"
     
+    new_data_modified = new_data_processed.copy()
+    for feature, recommendation in recommendations.items():
+        adjustment = float(recommendation.split()[-2])
+        new_data_modified.at[0, feature] += adjustment if 'Increase' in recommendation else -adjustment
+
+    potential_efficiency_prediction = model.predict(new_data_modified)[0]
+    improvement = potential_efficiency_prediction - current_efficiency_prediction  # Calculate improvement
+    
     return {
         "Current Efficiency": current_efficiency_prediction,
-        "Potential Efficiency After Changes": rf_regressor.predict(new_data_processed + recommendations_raw)[0],
+        "Potential Efficiency After Changes": potential_efficiency_prediction,
         "Improvement": improvement,
         "Current Cluster": current_cluster,
         "Target Cluster": target_cluster,
         "Recommendations": recommendations
     }
+
 
 # Streamlit user interface setup
 st.title('Sleep Efficiency Improvement Recommendations')
