@@ -10,7 +10,7 @@ from sklearn.metrics import mean_squared_error
 # Function to load data
 @st.cache_data
 def load_data():
-    data_path = '/Users/prathamranjan/Desktop/CBA Paper/sleep.csv'  # Specific dataset path
+    data_path = 'sleep.csv'  # Specific dataset path
     return pd.read_csv(data_path)
 
 # Load the dataset and avoid mutation warning by cloning
